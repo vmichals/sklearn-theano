@@ -213,7 +213,8 @@ def _parse_caffe_model(caffe_model):
 
 
 def parse_caffe_model(caffe_model, convert_fc_to_conv=True,
-                      float_dtype='float32', verbose=0):
+                      float_dtype='float32', verbose=0,
+                      theano_rng=None):
     if isinstance(caffe_model, str) or not isinstance(caffe_model, list):
         parsed_caffe_model = _parse_caffe_model(caffe_model)
     else:
@@ -322,9 +323,28 @@ def parse_caffe_model(caffe_model, convert_fc_to_conv=True,
             layers[layer_name] = pooling
             blobs[top_blobs[0]] = pooling.expression_
         elif layer_type == "DROPOUT":
-            # DROPOUT may figure in some networks, but it is only relevant
-            # at the learning stage, not at the prediction stage.
-            pass
+            print('DROPOUT')
+            if theano_rng is None:
+                print('skip')
+                pass
+            else:
+                print('add')
+                # DROPOUT may figure in some networks, but it is only relevant
+                # at the learning stage, not at the prediction stage.
+                dropout_input = blobs[bottom_blobs[0]]
+                dropout_rate = T.fscalar(layer_name + '_dropout_rate')
+                mask = theano_rng.binomial(
+                    n=1., p=1. - dropout_rate,
+                    size=dropout_input.shape, dtype='float32')
+                scale = 1. / (1. - dropout_rate)
+                dropout_expression = T.switch(
+                    T.gt(1. - dropout_rate, 1e-7),
+                    dropout_input * mask * scale,
+                    0.0)
+                layers[layer_name] = "DROPOUT"
+                blobs[top_blobs[0]] = dropout_expression
+                params[layer_name + '_dropout_rate'] = dropout_rate
+
         elif layer_type in ["SOFTMAX_LOSS", "SOFTMAX"]:
             softmax_input = blobs[bottom_blobs[0]]
             # have to write our own softmax expression, because of shape

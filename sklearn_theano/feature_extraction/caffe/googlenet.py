@@ -81,14 +81,19 @@ def fetch_googlenet_architecture(caffemodel_parsed=None,
     return model
 
 
-def create_theano_expressions(model=None, verbose=0):
+def create_theano_expressions(
+    model=None, verbose=0, theano_rng=None, return_params=False):
 
     if model is None:
         model = fetch_googlenet_architecture()
 
-    layers, blobs, inputs, params = parse_caffe_model(model, verbose=verbose)
+    layers, blobs, inputs, params = parse_caffe_model(
+        model, verbose=verbose, theano_rng=theano_rng)
     data_input = inputs['data']
-    return blobs, data_input
+    if return_params:
+        return blobs, data_input, params
+    else:
+        return blobs, data_input
 
 
 def _get_fprop(output_layers=('loss3/loss3',), model=None, verbose=0):
